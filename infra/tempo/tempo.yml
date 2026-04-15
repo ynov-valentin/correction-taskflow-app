@@ -1,0 +1,17 @@
+server:
+  http_listen_port: 3200    # port of the Tempo UI/API (not the traces)
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:               # enable receiving OTLP/gRCP
+          endpoint: "0.0.0.0:4317"
+          
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo/traces
+    wal:
+      path: /tmp/tempo/wal

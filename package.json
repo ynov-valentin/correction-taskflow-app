@@ -1,0 +1,30 @@
+{
+  "name": "taskflow",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "bash scripts/install-all.sh",
+    "dev": "docker compose up --build",
+    "dev:infra": "docker compose -f docker-compose.yml -f docker-compose.infra.yml up --build",
+    "down:infra": "docker compose -f docker-compose.yml -f docker-compose.infra.yml down --remove-orphans",
+    "down:network": "docker network prune -f",
+    "stop:infra": "npm run down:infra && npm run down:network",
+    "postgres:psql": "docker compose exec postgres psql -U taskflow -d taskflow",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint:gateway": "npm run lint -w api-gateway",
+    "lint:user": "npm run lint -w user-service",
+    "lint:task": "npm run lint -w task-service",
+    "lint:notification": "npm run lint -w notification-service",
+    "test:gateway": "npm run test -w api-gateway",
+    "test:user": "npm run test -w user-service",
+    "test:task": "npm run test -w task-service",
+    "test:notification": "npm run test -w notification-service"
+  },
+  "workspaces": [
+    "api-gateway",
+    "user-service",
+    "task-service",
+    "notification-service"
+  ]
+}

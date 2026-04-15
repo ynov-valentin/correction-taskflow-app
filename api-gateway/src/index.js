@@ -1,0 +1,131 @@
+require("./tracing");
+const {
+  register,
+  httpRequestDurationMs,
+  httpRequestsTotal,
+  upstreamErrorsTotal,
+} = require("./metrics");
+const express = require("express");
+const { createProxyMiddleware } = require("http-proxy-middleware");
+const pino = require("pino");
+const pinoHttp = require("pino-http");
+const authMiddleware = require("./auth");
+
+const logger = pino({ level: process.env.LOG_LEVEL || "info" });
+const app = express();
+
+const USER_SERVICE_URL =
+  process.env.USER_SERVICE_URL || "http://localhost:3001";
+const TASK_SERVICE_URL =
+  process.env.TASK_SERVICE_URL || "http://localhost:3002";
+const NOTIFICATION_SERVICE_URL =
+  process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3003";
+const ERROR_CODE = 400;
+
+app.use(pinoHttp({ logger }));
+
+app.use(
+  pinoHttp({
+    logger,
+    customLogLevel: (req, res) => {
+      if (res.statusCode >= ERROR_CODE) return "error";
+      return "info";
+    },
+    customSuccessMessage: (req, res) => {
+      if (res.statusCode >= 400) return req.errorMessage ?? `request failed`;
+      return `${req.method} completed`;
+    },
+    customErrorMessage: (req, res, err) => `request failed : ${err.message}`,
+  }),
+);
+
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    const labels = {
+      method: req.method,
+      route: req.path,
+      status: res.statusCode,
+    };
+    const durationMs = req._startTime
+      ? Number(process.hrtime.bigint() - req._startTime) / 1e6
+      : 0;
+    httpRequestsTotal.inc(labels);
+    httpRequestDurationMs.observe(labels, durationMs);
+  });
+  next();
+});
+
+app.get("/health", (req, res) =>
+  res.json({
+    status: "ok",
+    service: "api-gateway",
+    upstream: { USER_SERVICE_URL, TASK_SERVICE_URL, NOTIFICATION_SERVICE_URL },
+  }),
+);
+
+app.get("/metrics", async (req, res) => {
+  res.set("Content-Type", register.contentType);
+  res.end(await register.metrics());
+});
+
+app.use(authMiddleware);
+
+// Proxy to user-service
+app.use(
+  "/api/users",
+  createProxyMiddleware({
+    target: USER_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { "^/api/users": "/users" },
+    on: {
+      error: (err, req, res) => {
+        logger.error({ err }, "user-service proxy error");
+        upstreamErrorsTotal.inc({ service: "user-service" });
+        res.status(502).json({ error: "user-service unavailable" });
+      },
+    },
+  }),
+);
+
+// Proxy to task-service
+app.use(
+  "/api/tasks",
+  createProxyMiddleware({
+    target: TASK_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { "^/api/tasks": "/tasks" },
+    on: {
+      error: (err, req, res) => {
+        logger.error({ err }, "task-service proxy error");
+        upstreamErrorsTotal.inc({ service: "task-service" });
+        res.status(502).json({ error: "task-service unavailable" });
+      },
+    },
+  }),
+);
+
+// Proxy to notification-service
+app.use(
+  "/api/notifications",
+  createProxyMiddleware({
+    target: NOTIFICATION_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { "^/api/notifications": "/notifications" },
+    on: {
+      error: (err, req, res) => {
+        logger.error({ err }, "notification-service proxy error");
+        upstreamErrorsTotal.inc({ service: "notification-service" });
+        res.status(502).json({ error: "notification-service unavailable" });
+      },
+    },
+  }),
+);
+
+const PORT = process.env.PORT || 3004;
+const server = app.listen(PORT, () => {
+  logger.info({ port: PORT }, "api-gateway started");
+});
+// Record request start time before Express middleware runs
+server.prependListener("request", (req) => {
+  req._startTime = process.hrtime.bigint();
+});

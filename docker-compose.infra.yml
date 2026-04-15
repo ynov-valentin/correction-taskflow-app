@@ -1,0 +1,66 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    ports:
+      - "4317:4317" # gRPC
+      - "4318:4318" # HTTP
+      - "8888:8888" # métriques internes du collector
+    volumes:
+      - ./infra/otel/config.yml:/etc/otel/config.yml
+    command: ["--config=/etc/otel/config.yml"]
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./infra/tempo/tempo.yml:/etc/tempo/tempo.yml
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infra/loki/loki.yml:/etc/loki/loki.yml
+    command: ["-config.file=/etc/loki/loki.yml"]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      - ./infra/grafana/dashboards:/etc/dashboards
+    depends_on:
+      - prometheus
+      - tempo
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./infra/promtail/promtail.yml:/etc/promtail/promtail.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    depends_on:
+      - loki
+      - prometheus
+      - tempo
+
+volumes:
+  prometheus_data:
+  grafana_data:
