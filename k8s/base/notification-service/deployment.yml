@@ -17,7 +17,7 @@ spec:
         - name: dockerhub-secret
       containers:
         - name: notification-service
-          image: bruce1000/taskflow-notification-service:v1.0.0
+          image: bruce1000/taskflow-notification-service:v1.0.1
           envFrom:
             - configMapRef:
                 name: notification-service-cm

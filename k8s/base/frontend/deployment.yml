@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: bruce1000/taskflow-frontend:v1.0.0
+          image: bruce1000/taskflow-frontend:v1.0.1
           ports:
             - containerPort: 80
           readinessProbe:

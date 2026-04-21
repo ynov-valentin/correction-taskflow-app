@@ -17,7 +17,7 @@ spec:
         - name: dockerhub-secret
       containers:
         - name: task-service
-          image: bruce1000/taskflow-task-service:v1.0.0
+          image: bruce1000/taskflow-task-service:v1.0.1
           envFrom:
             - configMapRef:
                 name: task-service-cm
