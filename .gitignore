@@ -7,3 +7,4 @@ dist/
 kubeconfig.yml
 .claude/
 k8s/**/*secret.yml
+.vscode/
