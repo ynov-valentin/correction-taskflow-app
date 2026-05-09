@@ -1,0 +1,20 @@
+{{- range list "api-gateway" "task-service" "user-service" "notification-service" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ . }}
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - staging
+  selector:
+    matchLabels:
+      app: {{ . }}
+  endpoints:
+    - port: http
+      path: /metrics
+{{- end }}

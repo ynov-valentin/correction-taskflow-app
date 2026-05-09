@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: taskflow-alerts
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: taskflow
+      rules:
+        - alert: ServiceDown
+          expr: absent(up{job=~".*task-service.*"}) or up{job=~".*task-service.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "task-service est down"

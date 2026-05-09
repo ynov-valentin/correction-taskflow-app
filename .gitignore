@@ -6,5 +6,8 @@ dist/
 .DS_Store
 kubeconfig.yml
 .claude/
-k8s/**/*secret.yml
+**/*secret.yaml
+**/*secret.yml
 .vscode/
+TP**.md
+**/charts/*.tgz
