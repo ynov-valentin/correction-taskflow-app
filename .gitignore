@@ -9,5 +9,5 @@ kubeconfig.yml
 **/*secret.yaml
 **/*secret.yml
 .vscode/
-TP**.md
+TP*.md
 **/charts/*.tgz
