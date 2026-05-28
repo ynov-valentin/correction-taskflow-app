@@ -198,6 +198,11 @@ jobs:
         with:
           cluster_name: production
 
+      - name : Install dependencies
+        run: |
+          helm dependency update ./helm/monitoring
+          helm dependency update ./helm/taskflow
+
       # In production, SMTP secrets would be injected from GitHub Secrets
       - name: Deploy monitoring stack (production)
         run: |
