@@ -45,6 +45,11 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
+      - name: Install dependencies
+        run: |
+          helm dependency update ./helm/monitoring
+          helm dependency update ./helm/taskflow
+
       - name: Lint — monitoring
         run: |
           helm lint ./helm/monitoring \
