@@ -113,6 +113,11 @@ jobs:
         with:
           cluster_name: staging
 
+      - name : Install dependencies
+        run: |
+          helm dependency update ./helm/monitoring
+          helm dependency update ./helm/taskflow
+
       # Monitoring stack (Prometheus only in CI, grafana/alertmanager disabled)
       - name: Deploy monitoring stack
         run: |
