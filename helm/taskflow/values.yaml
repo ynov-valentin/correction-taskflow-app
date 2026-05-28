@@ -35,9 +35,11 @@ userService:
       cpu: "200m"
 
 taskService:
-  replicaCount: 2
   hpa:
-    enabled: false
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 70
   resources:
     requests:
       memory: "128Mi"

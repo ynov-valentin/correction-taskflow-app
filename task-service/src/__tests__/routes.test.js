@@ -36,7 +36,7 @@ beforeEach(() => {
 })
 
 describe('GET /tasks', () => {
-  it('retourne la liste des tâches', async () => {
+  it('returns the task list', async () => {
     db.query.mockResolvedValueOnce({ rows: [MOCK_TASK] })
 
     const res = await request(app).get('/tasks')
@@ -46,7 +46,7 @@ describe('GET /tasks', () => {
     expect(res.body[0].title).toBe('Écrire les tests')
   })
 
-  it('retourne un tableau vide si aucune tâche', async () => {
+  it('returns an empty array when there are no tasks', async () => {
     db.query.mockResolvedValueOnce({ rows: [] })
 
     const res = await request(app).get('/tasks')
@@ -57,7 +57,7 @@ describe('GET /tasks', () => {
 })
 
 describe('GET /tasks/:id', () => {
-  it('retourne une tâche par id', async () => {
+  it('returns a task by id', async () => {
     db.query.mockResolvedValueOnce({ rows: [MOCK_TASK] })
 
     const res = await request(app).get(`/tasks/${MOCK_TASK.id}`)
@@ -66,7 +66,7 @@ describe('GET /tasks/:id', () => {
     expect(res.body.id).toBe(MOCK_TASK.id)
   })
 
-  it('retourne 404 si introuvable', async () => {
+  it('returns 404 if not found', async () => {
     db.query.mockResolvedValueOnce({ rows: [] })
 
     const res = await request(app).get('/tasks/uuid-inexistant')
@@ -76,7 +76,7 @@ describe('GET /tasks/:id', () => {
 })
 
 describe('POST /tasks', () => {
-  it('crée une tâche et publie un event Redis', async () => {
+  it('creates a task and publishes a Redis event', async () => {
     db.query.mockResolvedValueOnce({ rows: [MOCK_TASK] })
 
     const res = await request(app)
@@ -91,7 +91,7 @@ describe('POST /tasks', () => {
     }))
   })
 
-  it('retourne 400 si le titre est manquant', async () => {
+  it('returns 400 if title is missing', async () => {
     const res = await request(app)
       .post('/tasks')
       .send({ priority: 'high' })
@@ -104,7 +104,7 @@ describe('POST /tasks', () => {
 })
 
 describe('PATCH /tasks/:id', () => {
-  it('met à jour le statut et publie un event Redis', async () => {
+  it('updates the status and publishes a Redis event', async () => {
     const updatedTask = { ...MOCK_TASK, status: 'in_progress' }
     db.query
       .mockResolvedValueOnce({ rows: [MOCK_TASK] })    // SELECT current
@@ -122,14 +122,14 @@ describe('PATCH /tasks/:id', () => {
     }))
   })
 
-  it('ne publie pas d\'event si le statut ne change pas', async () => {
+  it('does not publish an event if status does not change', async () => {
     db.query
       .mockResolvedValueOnce({ rows: [MOCK_TASK] })
       .mockResolvedValueOnce({ rows: [{ ...MOCK_TASK, title: 'Nouveau titre' }] })
 
     const res = await request(app)
       .patch(`/tasks/${MOCK_TASK.id}`)
-      .send({ title: 'Nouveau titre' }) // pas de changement de statut
+      .send({ title: 'Nouveau titre' }) // no status change
 
     expect(res.status).toBe(200)
     expect(publish).not.toHaveBeenCalled()
@@ -137,7 +137,7 @@ describe('PATCH /tasks/:id', () => {
 })
 
 describe('DELETE /tasks/:id', () => {
-  it('supprime une tâche et retourne 204', async () => {
+  it('deletes a task and returns 204', async () => {
     db.query.mockResolvedValueOnce({ rows: [{ id: MOCK_TASK.id }] })
 
     const res = await request(app).delete(`/tasks/${MOCK_TASK.id}`)
@@ -145,7 +145,7 @@ describe('DELETE /tasks/:id', () => {
     expect(res.status).toBe(204)
   })
 
-  it('retourne 404 si la tâche n\'existe pas', async () => {
+  it('returns 404 if task does not exist', async () => {
     db.query.mockResolvedValueOnce({ rows: [] })
 
     const res = await request(app).delete('/tasks/uuid-inexistant')

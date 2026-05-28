@@ -9,10 +9,10 @@ spec:
   groups:
     - name: taskflow
       rules:
-        - alert: ServiceDown
-          expr: absent(up{job=~".*task-service.*"}) or up{job=~".*task-service.*"} == 0
-          for: 1m
+        - alert: HighP95Latency
+          expr: histogram_quantile(0.95, sum by(job, le) (rate(http_request_duration_ms_bucket{job=~".*task-service.*"}[1m]))) > 500
+          for: 30s
           labels:
-            severity: critical
+            severity: warning
           annotations:
-            summary: "task-service est down"
+            summary: "P95 latency for task-service is above 500ms"

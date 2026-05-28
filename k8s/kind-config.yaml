@@ -8,7 +8,7 @@ nodes:
         nodeRegistration:
           kubeletExtraArgs:
             node-labels: "ingress-ready=true" 
-    # Sans ce label, le pod NGINX Ingress reste en Pending indéfiniment
+    # Without this label, the NGINX Ingress pod stays Pending forever
     extraPortMappings:
       - containerPort: 80
         hostPort: 80
@@ -16,7 +16,7 @@ nodes:
       - containerPort: 443
         hostPort: 443
         protocol: TCP
-      # Tunnels entre votre machine et le conteneur kind
-      # Sans ça, http://localhost ne répond pas même avec l'Ingress déployé
+      # Port tunnels between your machine and the kind container
+      # Without this, http://localhost does not respond even with Ingress deployed
   - role: worker
   - role: worker

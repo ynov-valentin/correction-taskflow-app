@@ -12,8 +12,8 @@ import { sleep, check } from 'k6';
 
 // Light load scenario
 export const options = {
-  vus: 5,          // 5 utilisateurs virtuels simultanés
-  duration: '30s', // pendant 30 secondes
+  vus: 5,          // 5 concurrent virtual users
+  duration: '30s', // for 30 seconds
 };
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:3004';

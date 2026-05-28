@@ -1,5 +1,7 @@
 # ci-cd.yml - GitHub Actions workflow for CI/CD pipeline
-# Build et push images to Docker Hub on push to main or PRs
+# Build and push images to Docker Hub on push to main or PRs
+
+name: "CI — Build & Push"
 
 on:
   push:

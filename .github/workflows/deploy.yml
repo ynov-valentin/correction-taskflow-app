@@ -1,0 +1,250 @@
+# deploy.yml — CD pipeline: validate → staging → production (manual approval)
+#
+# Triggers:
+#   - Automatically after CI build (workflow_run)
+#   - Manually via workflow_dispatch with custom image tag
+#
+# GitHub prerequisites:
+#   - Secret DOCKERHUB_USERNAME / DOCKERHUB_TOKEN
+#   - Secret POSTGRES_PASSWORD_PROD  (production only)
+#   - Environment "staging"    (no protection rule needed)
+#   - Environment "production" (protection: manual approval required)
+
+name: "CD — Deploy Helm Stack"
+
+on:
+  workflow_run:
+    workflows: ["CI — Build & Push"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (e.g. v1.0.1). Empty = latest build SHA."
+        required: false
+        default: ""
+
+# IMAGE_TAG: SHA from CI build, or manually provided tag, or 'latest' as fallback
+env:
+  IMAGE_TAG: ${{ inputs.image_tag || github.event.workflow_run.head_sha || 'latest' }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VALIDATE — Lint + template rendering, no cluster required
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  validate:
+    name: "Validate Helm Charts"
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint — monitoring
+        run: |
+          helm lint ./helm/monitoring \
+            --values ./helm/monitoring/values.monitoring.yaml \
+            --values ./helm/monitoring/values.ci.yaml
+
+      - name: Lint — taskflow (staging)
+        run: |
+          helm lint ./helm/taskflow \
+            --values ./helm/taskflow/values.yaml \
+            --values ./helm/taskflow/values.staging.yaml
+
+      - name: Lint — taskflow (production)
+        run: |
+          helm lint ./helm/taskflow \
+            --values ./helm/taskflow/values.yaml \
+            --values ./helm/taskflow/values.production.yaml \
+            --set postgres.password=placeholder
+
+      - name: Template — monitoring (dry-run rendering)
+        run: |
+          helm template monitoring ./helm/monitoring \
+            --namespace monitoring \
+            --values ./helm/monitoring/values.monitoring.yaml \
+            --values ./helm/monitoring/values.ci.yaml
+
+      - name: Template — taskflow staging (dry-run rendering)
+        run: |
+          helm template taskflow ./helm/taskflow \
+            --namespace staging \
+            --values ./helm/taskflow/values.yaml \
+            --values ./helm/taskflow/values.staging.yaml \
+            --set image.tag=${{ env.IMAGE_TAG }}
+
+      - name: Template — taskflow production (dry-run rendering)
+        run: |
+          helm template taskflow ./helm/taskflow \
+            --namespace production \
+            --values ./helm/taskflow/values.yaml \
+            --values ./helm/taskflow/values.production.yaml \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --set postgres.password=placeholder
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPLOY STAGING — Ephemeral Kind cluster, real deployment, smoke test
+# ─────────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: "Deploy to Staging"
+    runs-on: ubuntu-latest
+    needs: [validate]
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: staging
+
+      # Monitoring stack (Prometheus only in CI, grafana/alertmanager disabled)
+      - name: Deploy monitoring stack
+        run: |
+          helm upgrade --install monitoring ./helm/monitoring \
+            --namespace monitoring \
+            --create-namespace \
+            --values ./helm/monitoring/values.monitoring.yaml \
+            --values ./helm/monitoring/values.ci.yaml \
+            --timeout 10m \
+            --wait
+
+      # Create namespace + dockerhub secret BEFORE helm upgrade
+      - name: Prepare staging namespace
+        run: |
+          kubectl create namespace staging --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry dockerhub-secret \
+            --docker-server=docker.io \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --namespace staging \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy taskflow (staging)
+        run: |
+          helm upgrade --install taskflow ./helm/taskflow \
+            --namespace staging \
+            --values ./helm/taskflow/values.yaml \
+            --values ./helm/taskflow/values.staging.yaml \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --timeout 5m \
+            --wait
+
+      - name: Smoke test — pods ready + /health
+        run: |
+          echo "=== Monitoring pods ==="
+          kubectl get pods -n monitoring
+
+          echo ""
+          echo "=== Staging pods ==="
+          kubectl get pods -n staging
+
+          echo ""
+          echo "=== Waiting for api-gateway ==="
+          kubectl wait deployment/api-gateway \
+            --for=condition=available \
+            --timeout=120s \
+            -n staging
+
+          echo ""
+          echo "=== Health check ==="
+          kubectl port-forward svc/api-gateway 8080:3004 -n staging &
+          sleep 5
+          curl --fail --silent --show-error http://localhost:8080/health
+          echo ""
+          echo "Staging OK — image: ${{ env.IMAGE_TAG }}"
+
+      - name: Helm release report
+        if: always()
+        run: helm list -A
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPLOY PRODUCTION — Manual approval gate via GitHub Environments
+# ─────────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    name: "Deploy to Production"
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    environment: production      # ← configure a protection rule in GitHub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: production
+
+      # In production, SMTP secrets would be injected from GitHub Secrets
+      - name: Deploy monitoring stack (production)
+        run: |
+          helm upgrade --install monitoring ./helm/monitoring \
+            --namespace monitoring \
+            --create-namespace \
+            --values ./helm/monitoring/values.monitoring.yaml \
+            --values ./helm/monitoring/values.ci.yaml \
+            --set 'alertmanagerConfig.smtp.host=${{ secrets.SMTP_HOST }}' \
+            --set 'alertmanagerConfig.smtp.from=${{ secrets.SMTP_FROM }}' \
+            --set 'alertmanagerConfig.smtp.username=${{ secrets.SMTP_USERNAME }}' \
+            --set 'alertmanagerConfig.smtp.password=${{ secrets.SMTP_PASSWORD }}' \
+            --set 'alertmanagerConfig.smtp.to=${{ secrets.SMTP_TO }}' \
+            --timeout 10m \
+            --wait
+
+      - name: Prepare production namespace
+        run: |
+          kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry dockerhub-secret \
+            --docker-server=docker.io \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --namespace production \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy taskflow (production)
+        run: |
+          helm upgrade --install taskflow ./helm/taskflow \
+            --namespace production \
+            --values ./helm/taskflow/values.yaml \
+            --values ./helm/taskflow/values.production.yaml \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --set postgres.password=${{ secrets.POSTGRES_PASSWORD_PROD }} \
+            --timeout 5m \
+            --wait
+
+      - name: Smoke test — pods ready + /health
+        run: |
+          echo "=== Production pods ==="
+          kubectl get pods -n production
+
+          echo ""
+          echo "=== Waiting for api-gateway ==="
+          kubectl wait deployment/api-gateway \
+            --for=condition=available \
+            --timeout=120s \
+            -n production
+
+          echo ""
+          echo "=== Health check ==="
+          kubectl port-forward svc/api-gateway 8080:3004 -n production &
+          sleep 5
+          curl --fail --silent --show-error http://localhost:8080/health
+          echo ""
+          echo "Production OK — image: ${{ env.IMAGE_TAG }}"
+
+      - name: Helm release report
+        if: always()
+        run: helm list -A

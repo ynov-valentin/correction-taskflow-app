@@ -43,7 +43,7 @@ beforeEach(() => {
 })
 
 describe('POST /users/register', () => {
-  it('crée un utilisateur et retourne 201', async () => {
+  it('creates a user and returns 201', async () => {
     db.query.mockResolvedValueOnce({
       rows: [{ id: MOCK_USER.id, email: MOCK_USER.email, name: MOCK_USER.name, created_at: MOCK_USER.created_at }],
     })
@@ -54,20 +54,20 @@ describe('POST /users/register', () => {
 
     expect(res.status).toBe(201)
     expect(res.body.email).toBe('alice@taskflow.dev')
-    expect(res.body.password_hash).toBeUndefined() // ne jamais exposer le hash
+    expect(res.body.password_hash).toBeUndefined() // never expose the hash
   })
 
-  it('retourne 400 si un champ est manquant', async () => {
+  it('returns 400 if a field is missing', async () => {
     const res = await request(app)
       .post('/users/register')
-      .send({ email: 'alice@taskflow.dev' }) // password et name manquants
+      .send({ email: 'alice@taskflow.dev' }) // password and name missing
 
     expect(res.status).toBe(400)
     expect(res.body.error).toBeDefined()
   })
 
-  it('retourne 409 si email déjà existant', async () => {
-    db.query.mockRejectedValueOnce({ code: '23505' }) // code PG unique violation
+  it('returns 409 if email already exists', async () => {
+    db.query.mockRejectedValueOnce({ code: '23505' }) // PG unique violation code
 
     const res = await request(app)
       .post('/users/register')
@@ -78,7 +78,7 @@ describe('POST /users/register', () => {
 })
 
 describe('POST /users/login', () => {
-  it('retourne un token si les credentials sont valides', async () => {
+  it('returns a token when credentials are valid', async () => {
     db.query.mockResolvedValueOnce({ rows: [MOCK_USER] })
     bcrypt.compare.mockResolvedValueOnce(true)
 
@@ -91,7 +91,7 @@ describe('POST /users/login', () => {
     expect(res.body.user.email).toBe('alice@taskflow.dev')
   })
 
-  it('retourne 401 si utilisateur introuvable', async () => {
+  it('returns 401 if user is not found', async () => {
     db.query.mockResolvedValueOnce({ rows: [] })
 
     const res = await request(app)
@@ -101,7 +101,7 @@ describe('POST /users/login', () => {
     expect(res.status).toBe(401)
   })
 
-  it('retourne 401 si mot de passe incorrect', async () => {
+  it('returns 401 if password is incorrect', async () => {
     db.query.mockResolvedValueOnce({ rows: [MOCK_USER] })
     bcrypt.compare.mockResolvedValueOnce(false)
 
@@ -114,7 +114,7 @@ describe('POST /users/login', () => {
 })
 
 describe('GET /users/:id', () => {
-  it('retourne un utilisateur par id', async () => {
+  it('returns a user by id', async () => {
     db.query.mockResolvedValueOnce({ rows: [MOCK_USER] })
 
     const res = await request(app).get(`/users/${MOCK_USER.id}`)
@@ -123,7 +123,7 @@ describe('GET /users/:id', () => {
     expect(res.body.id).toBe(MOCK_USER.id)
   })
 
-  it('retourne 404 si introuvable', async () => {
+  it('returns 404 if not found', async () => {
     db.query.mockResolvedValueOnce({ rows: [] })
 
     const res = await request(app).get('/users/uuid-inexistant')

@@ -1,0 +1,40 @@
+# Staging: between defaults and production
+# Always pull the latest image, reduced replicas, no HPA
+image:
+  pullPolicy: Always
+
+postgres:
+  storageSize: 2Gi
+
+frontend:
+  replicaCount: 1
+
+userService:
+  replicaCount: 1
+  hpa:
+    enabled: false
+
+taskService:
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 2
+    targetCPU: 70
+
+notificationService:
+  replicaCount: 1
+
+apiGateway:
+  replicaCount: 1
+  hpa:
+    enabled: false
+
+redis:
+  master:
+    resources:
+      requests:
+        memory: "16Mi"
+        cpu: "25m"
+      limits:
+        memory: "32Mi"
+        cpu: "50m"

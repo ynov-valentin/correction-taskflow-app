@@ -4,7 +4,7 @@ services:
     ports:
       - "4317:4317" # gRPC
       - "4318:4318" # HTTP
-      - "8888:8888" # métriques internes du collector
+      - "8888:8888" # otel-collector internal metrics
     volumes:
       - ./infra/otel/config.yml:/etc/otel/config.yml
     command: ["--config=/etc/otel/config.yml"]

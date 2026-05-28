@@ -1,9 +1,9 @@
-# Production : images figées, secrets forts, plus de replicas, plus de ressources
+# Production: pinned images, strong secrets, more replicas, more resources
 image:
   pullPolicy: Always
 
 postgres:
-  password: REMPLACER_PAR_MOT_DE_PASSE_FORT
+  password: REPLACE_WITH_STRONG_PASSWORD
   db: taskflow_prod
   storageSize: 10Gi
 

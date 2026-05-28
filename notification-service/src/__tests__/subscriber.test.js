@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 
-// On teste la logique du subscriber sans Redis réel
+// Test subscriber logic without a real Redis connection
 vi.mock('../subscriber.js', async (importOriginal) => {
-  // On importe le vrai module pour tester getNotifications et markAsRead
-  // mais on mock startSubscriber qui ouvre une vraie connexion Redis
+  // Import the real module to test getNotifications and markAsRead
+  // but mock startSubscriber which opens a real Redis connection
   const actual = await importOriginal()
   return {
     ...actual,
@@ -15,7 +15,7 @@ vi.mock('../subscriber.js', async (importOriginal) => {
 
 import { getNotifications, markAsRead, startSubscriber } from '../subscriber.js'
 
-// App minimale reproduisant les routes de index.js sans démarrer le serveur
+// Minimal app reproducing the routes from index.js without starting the server
 const app = express()
 app.use(express.json())
 app.get('/notifications', (req, res) => {
@@ -28,27 +28,27 @@ app.patch('/notifications/:id/read', (req, res) => {
   res.json(notif)
 })
 
-describe('subscriber — logique interne', () => {
-  it('getNotifications retourne un tableau vide au démarrage', () => {
+describe('subscriber — internal logic', () => {
+  it('getNotifications returns an empty array on startup', () => {
     const result = getNotifications()
     expect(Array.isArray(result)).toBe(true)
   })
 
-  it('getNotifications filtre par userId', () => {
+  it('getNotifications filters by userId', () => {
     const all = getNotifications()
     const forUser = getNotifications('uuid-alice')
-    // Tous les résultats filtrés appartiennent à alice
+    // All filtered results belong to alice
     forUser.forEach(n => expect(n.userId).toBe('uuid-alice'))
   })
 
-  it('markAsRead retourne null pour un id inexistant', () => {
+  it('markAsRead returns undefined for an unknown id', () => {
     const result = markAsRead('id-qui-nexiste-pas')
     expect(result).toBeUndefined()
   })
 })
 
 describe('GET /notifications', () => {
-  it('retourne 200 avec un tableau', async () => {
+  it('returns 200 with an array', async () => {
     const res = await request(app).get('/notifications')
     expect(res.status).toBe(200)
     expect(Array.isArray(res.body)).toBe(true)
@@ -56,7 +56,7 @@ describe('GET /notifications', () => {
 })
 
 describe('PATCH /notifications/:id/read', () => {
-  it('retourne 404 pour une notification inexistante', async () => {
+  it('returns 404 for an unknown notification', async () => {
     const res = await request(app).patch('/notifications/fake-id/read')
     expect(res.status).toBe(404)
   })

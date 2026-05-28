@@ -19,6 +19,10 @@ kube-prometheus-stack:
       serviceMonitorSelector:
         matchLabels:
           release: monitoring
+      ruleSelector:
+        matchLabels:
+          release: monitoring
+      ruleNamespaceSelector: {}
       retention: 7d
       resources:
         requests:
